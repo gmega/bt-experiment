@@ -1,17 +1,18 @@
 import base64
 import os.path
+
 from io import BytesIO
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Optional
 
 from deluge.config import Config
 from torrentool.api import Torrent
 from deluge_client.client import DelugeRPCClient
 
-TRACKER_URL = 'http://localhost:6969/announce'
+TRACKER_URL = 'http://127.0.0.1:6969/announce'
 
 
-class Auth:
+class AuthFile:
     def __init__(self, path: Path):
         auth = {}
         with path.open('r', encoding='utf-8') as infile:
@@ -22,59 +23,89 @@ class Auth:
         self.passwords = auth
 
 
-def rpc_client(config_path: Path) -> DelugeRPCClient:
-    config = Config(filename=os.path.abspath(config_path / 'core.conf'))
-    auth = Auth(config_path / 'auth')
-    return DelugeRPCClient(
-        host='127.0.0.1',
-        port=config['daemon_port'],
-        username='localclient',
-        password=auth.passwords['localclient'],
-    )
+class TorrentClient:
+    def __init__(self, root: Path):
+        self.root = root
+        self.downloads = root / 'downloads'
+        self.state = root / 'state'
+        self.config = Config(filename=os.path.abspath(root / 'core.conf'))
+        self.auth = AuthFile(root / 'auth')
 
+        self._rpc: Optional[DelugeRPCClient] = None
 
-def make_dataset(parent: Path, size_bytes: int, name: str, announce_url: str) -> Tuple[Path, Path, bytes]:
-    if not parent.is_dir():
-        raise Exception()
+    def create_dataset(
+            self,
+            announce_url: str,
+            name: str,
+            size_bytes: int
+    ) -> Tuple[Path, bytes]:
+        data_root = self.downloads / name
+        data_root.mkdir(parents=True, exist_ok=False)
+        data_file = data_root / 'datafile.bin'
 
-    data_root = parent / name
-    data_root.mkdir(parents=True, exist_ok=False)
-    data_file = data_root / 'datafile.bin'
+        random_bytes = os.urandom(size_bytes)
+        with data_file.open('wb') as outfile:
+            outfile.write(random_bytes)
 
-    random_bytes = os.urandom(size_bytes)
-    with data_file.open('wb') as outfile:
-        outfile.write(random_bytes)
+        torrent_file = self.downloads / f'{name}.torrent'
+        torrent_meta = Torrent.create_from(data_root)
+        torrent_meta.announce_urls = announce_url
+        torrent_meta.name = name
+        torrent_meta.to_file(os.path.abspath(torrent_file))
 
-    torrent_file = parent / f'{name}.torrent'
-    torrent_meta = Torrent.create_from(data_root)
-    torrent_meta.announce_urls = announce_url
-    torrent_meta.name = name
-    torrent_meta.to_file(os.path.abspath(torrent_file))
+        buffer = BytesIO()
+        buffer.write(torrent_meta.to_string())
 
-    buffer = BytesIO()
-    buffer.write(torrent_meta.to_string())
+        return torrent_file, base64.b64encode(buffer.getvalue())
 
-    return torrent_file, data_root, base64.b64encode(buffer.getvalue())
+    def connect(self) -> 'TorrentClient':
+        client = DelugeRPCClient(
+            host='127.0.0.1',
+            port=self.config['daemon_port'],
+            username='localclient',
+            password=self.auth.passwords['localclient'],
+        )
+        client.connect()
+        self._rpc = client
+        return self
+
+    @property
+    def rpc(self) -> DelugeRPCClient:
+        if self._rpc is None:
+            self.connect()
+        return self._rpc
+
+    def wait_for_completion(self, torrent_name: str):
+        pass
 
 
 def main():
     root_path = Path('/home/giuliano/Work/Status/bittorrent-baseline/experiment-1/')
 
-    client1 = rpc_client(root_path / 'client1')
-    client2 = rpc_client(root_path / 'client2')
+    client1 = TorrentClient(root_path / 'client1')
+    client2 = TorrentClient(root_path / 'client2')
 
-    torrent_file, _, b64dump = make_dataset(
-        parent=root_path / 'client1' / 'downloads',
-        size_bytes=1024 * 1024 * 50,
-        name='dataset1',
+    torrent_file, b64dump = client1.create_dataset(
         announce_url=TRACKER_URL,
+        name='dataset1',
+        size_bytes=1024 * 1024 * 50
     )
 
-    client1.connect()
-    client2.connect()
+    # Creates seeder.
+    client1.rpc.core.add_torrent_file(
+        filename='dataset1.torrent',
+        filedump=b64dump,
+        options=dict()
+    )
 
-    client1.core.add_torrent_file(filename='dataset1.torrent', filedump=b64dump, options=dict())
-    client1.core.add_torrent_file(filename='dataset1.torrent', filedump=b64dump, options=dict())
+    # Creates leecher.
+    client2.rpc.core.add_torrent_file(
+        filename='dataset1.torrent',
+        filedump=b64dump,
+        options=dict()
+    )
+
+    client2.wait_for_completion('dataset1')
 
 
 if __name__ == '__main__':
