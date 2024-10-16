@@ -1,13 +1,14 @@
 import base64
 import os.path
-
+import shutil
 from io import BytesIO
 from pathlib import Path
+from time import sleep
 from typing import Tuple, Optional
 
 from deluge.config import Config
-from torrentool.api import Torrent
 from deluge_client.client import DelugeRPCClient
+from torrentool.api import Torrent
 
 TRACKER_URL = 'http://127.0.0.1:6969/announce'
 
@@ -58,6 +59,10 @@ class TorrentClient:
 
         return torrent_file, base64.b64encode(buffer.getvalue())
 
+    def clear(self):
+        shutil.rmtree(self.downloads)
+        shutil.rmtree(self.state)
+
     def connect(self) -> 'TorrentClient':
         client = DelugeRPCClient(
             host='127.0.0.1',
@@ -76,7 +81,11 @@ class TorrentClient:
         return self._rpc
 
     def wait_for_completion(self, torrent_name: str):
-        pass
+        while True:
+            status = self.rpc.core.get_torrents_status({'name': torrent_name})
+            if status['is_finished']:
+                return
+            sleep(0.5)
 
 
 def main():

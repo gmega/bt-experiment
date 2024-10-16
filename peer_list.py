@@ -9,7 +9,7 @@ from torrentool.bencode import Bencode
 from hashlib import sha1
 from socket import inet_ntoa
 
-TRACKER_URL = 'http://127.0.0.1:6969/announce/'
+TRACKER_URL = 'http://127.0.0.1:6969/announce'
 
 
 def query_peers(path: Path):
@@ -17,8 +17,9 @@ def query_peers(path: Path):
 
     response = requests.get(TRACKER_URL, params={'info_hash': info_hash(torrentfile)}).content
     status = Bencode.decode(response)
-    peer_list = status['peers']
-    status['peers'] = decode_compact_peers(peer_list.encode() if isinstance(peer_list, str) else peer_list)
+    peer_list = status.get('peers')
+    if peer_list:
+        status['peers'] = decode_compact_peers(peer_list.encode() if isinstance(peer_list, str) else peer_list)
     print(json.dumps(status, indent=2))
 
 
