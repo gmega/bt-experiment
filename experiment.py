@@ -82,7 +82,7 @@ class TorrentClient:
 
     def wait_for_completion(self, torrent_name: str):
         while True:
-            status = self.rpc.core.get_torrents_status({'name': torrent_name})
+            status = self.rpc.core.get_torrents_status({'name': torrent_name}, [])
             if status['is_finished']:
                 return
             sleep(0.5)
@@ -94,12 +94,14 @@ def main():
     client1 = TorrentClient(root_path / 'client1')
     client2 = TorrentClient(root_path / 'client2')
 
+    print("1 - Create dataset.")
     torrent_file, b64dump = client1.create_dataset(
         announce_url=TRACKER_URL,
         name='dataset1',
         size_bytes=1024 * 1024 * 50
     )
 
+    print("2 - Publish to seeder.")
     # Creates seeder.
     client1.rpc.core.add_torrent_file(
         filename='dataset1.torrent',
@@ -107,6 +109,7 @@ def main():
         options=dict()
     )
 
+    print("3 - Publish to leecher.")
     # Creates leecher.
     client2.rpc.core.add_torrent_file(
         filename='dataset1.torrent',
@@ -114,8 +117,10 @@ def main():
         options=dict()
     )
 
+    print("4 - Wait for completion.")
     client2.wait_for_completion('dataset1')
 
+    print("5 - Clear.")
 
 if __name__ == '__main__':
     main()

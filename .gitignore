@@ -2,3 +2,4 @@
 .idea
 **/state/*
 *.log
+.Rproj.user

@@ -1,6 +1,0 @@
-deluge==2.1.1
-deluge-client @ git+https://github.com/JohnDoee/deluge-client.git@abca22ccb300593790aad6651be583a9b06229a7
-ipython==8.12.3
-lbry-libtorrent==1.2.4
-requests==2.32.3
-torrentool==1.2.0

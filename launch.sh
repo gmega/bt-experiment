@@ -2,11 +2,14 @@
 
 start_client () {
   client_name="$1"
-  gnome-terminal --title "$client_name" -- bash -ic "conda activate deluge; deluged -c ./${client_name} -L debug -i 127.0.0.1 -o 127.0.0.1 -d | tee ${client_name}.log; exec bash"
+  rm -rf "./${client_name}/"{downloads,state}
+  gnome-terminal --title "$client_name" -- bash -ic "conda activate deluge; python -m deluge.core.daemon_entry -L debug -i 127.0.0.1 -o 127.0.0.1 -d -c ./${client_name} | tee ${client_name}.log; exec bash"
 }
 
-# Don't use opentracker, use something else.
-# gnome-terminal --title "Tracker" -- bash -c "../opentracker/opentracker"
+gnome-terminal --title "Tracker" -- bash -c "cd ../bittorrent-tracker; ./bin/cmd.js; exec bash"
 
 start_client "client1"
 start_client "client2"
+
+sleep 2 # yeah this is a hack
+python -m experiment
