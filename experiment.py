@@ -1,8 +1,12 @@
 import base64
+import json
 import os.path
 import shutil
+import sys
+from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
+from sys import argv
 from time import sleep
 from typing import Tuple, Optional
 
@@ -10,7 +14,11 @@ from deluge.config import Config
 from deluge_client.client import DelugeRPCClient
 from torrentool.api import Torrent
 
-TRACKER_URL = 'http://127.0.0.1:6969/announce'
+
+@dataclass(frozen=True)
+class ExperimentConfig:
+    tracker_url: str
+    root_path: Path
 
 
 class AuthFile:
@@ -65,7 +73,7 @@ class TorrentClient:
 
     def connect(self) -> 'TorrentClient':
         client = DelugeRPCClient(
-            host='127.0.0.1',
+            host=self.config['listen_interface'],
             port=self.config['daemon_port'],
             username='localclient',
             password=self.auth.passwords['localclient'],
@@ -82,21 +90,23 @@ class TorrentClient:
 
     def wait_for_completion(self, torrent_name: str):
         while True:
-            status = self.rpc.core.get_torrents_status({'name': torrent_name}, [])
-            if status['is_finished']:
+            response = self.rpc.core.get_torrents_status({'name': torrent_name}, [])
+            assert len(response) == 1
+            status = list(response.values())[0]
+            if status[b'is_finished']:
                 return
             sleep(0.5)
 
 
-def main():
-    root_path = Path('/home/giuliano/Work/Status/bittorrent-baseline/experiment-1/')
+def main(config: ExperimentConfig):
+    root_path = Path(config.root_path)
 
     client1 = TorrentClient(root_path / 'client1')
     client2 = TorrentClient(root_path / 'client2')
 
     print("1 - Create dataset.")
     torrent_file, b64dump = client1.create_dataset(
-        announce_url=TRACKER_URL,
+        announce_url=config.tracker_url,
         name='dataset1',
         size_bytes=1024 * 1024 * 50
     )
@@ -122,5 +132,16 @@ def main():
 
     print("5 - Clear.")
 
+
+def parse_args() -> ExperimentConfig:
+    if len(argv) != 2:
+        print("Experiment configuration missing.")
+        sys.exit(-1)
+
+    return ExperimentConfig(
+        **json.loads(Path(argv[1]).read_text()),
+    )
+
+
 if __name__ == '__main__':
-    main()
+    main(parse_args())

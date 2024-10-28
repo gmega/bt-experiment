@@ -3,3 +3,4 @@
 **/state/*
 *.log
 .Rproj.user
+**/__pycache__/*

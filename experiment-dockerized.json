@@ -1,0 +1,4 @@
+{
+  "tracker_url": "http://192.168.1.99:6969/announce",
+  "root_path": "/home/giuliano/Work/Status/bittorrent-baseline/experiment-1/dockerized"
+}
