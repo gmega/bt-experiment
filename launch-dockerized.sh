@@ -15,4 +15,4 @@ start_client "client2"
 
 sleep 2 # yeah this is a hack
 sudo chmod a+r -R ./dockerized
-#python -m experiment experiment-local.json
+python -m experiment experiment-dockerized.json

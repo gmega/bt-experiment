@@ -90,12 +90,13 @@ class TorrentClient:
 
     def wait_for_completion(self, torrent_name: str):
         while True:
+            print(f'Awaiting for torrent {torrent_name} to finish...', file=sys.stderr)
             response = self.rpc.core.get_torrents_status({'name': torrent_name}, [])
             assert len(response) == 1
             status = list(response.values())[0]
             if status[b'is_finished']:
                 return
-            sleep(0.5)
+            sleep(1)
 
 
 def main(config: ExperimentConfig):

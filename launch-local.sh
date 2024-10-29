@@ -11,5 +11,5 @@ gnome-terminal --title "Tracker" -- bash -c "cd ../bittorrent-tracker; ./bin/cmd
 start_client "client1"
 start_client "client2"
 
-#sleep 2 # yeah this is a hack
-#python -m experiment experiment-local.json
+sleep 2 # yeah this is a hack
+python -m experiment experiment-local.json
